@@ -11,6 +11,8 @@ jobs:
   retry:
     runs-on: ubuntu-latest
     timeout-minutes: 355      # 接近 GitHub Actions 上限 6 小時
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true  # 消除 Node.js 20 deprecation warning
 
     steps:
       - name: Checkout
@@ -50,12 +52,13 @@ jobs:
 
       - name: Run OCI retry script
         # 腳本成功（exit 0）→ 下一步自動停用 workflow
-        # timeout 到期（exit 124）→ 視為 failure，下一步不執行
+        # timeout 到期（exit 124）→ 視為 failure，觸發下一個 Job
+        # timeout 19800s = 330 分鐘，比 job timeout 355 分鐘少 25 分鐘，保留給前置步驟
         id: run_script
         continue-on-error: true
         env:
           PYTHONUNBUFFERED: "1"
-        run: timeout 21000 python oci_retry.py
+        run: timeout 19800 python oci_retry.py
 
       - name: 成功後自動停用 workflow
         if: steps.run_script.outcome == 'success'
