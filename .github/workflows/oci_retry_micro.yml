@@ -1,18 +1,18 @@
-name: OCI Micro 搶機
+name: OCI Micro Retry
 
 on:
-  workflow_dispatch:  # 只能手動觸發
+  workflow_dispatch:  # Manual trigger only
 
 concurrency:
-  group: oci-retry-micro      # 與 ARM workflow 分開，互不干擾
-  cancel-in-progress: false   # 不取消正在跑的，新的排隊等候（最多 1 跑 + 1 等）
+  group: oci-retry-micro      # Separate from ARM workflow, no interference
+  cancel-in-progress: false   # Do not cancel running jobs; new ones queue (max 1 running + 1 waiting)
 
 jobs:
   retry:
     runs-on: ubuntu-latest
-    timeout-minutes: 355      # 接近 GitHub Actions 上限 6 小時
+    timeout-minutes: 355      # Close to GitHub Actions 6-hour limit
     env:
-      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true  # 消除 Node.js 20 deprecation warning
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true  # Suppress Node.js 20 deprecation warning
 
     steps:
       - name: Checkout
@@ -36,11 +36,11 @@ jobs:
         run: |
           mkdir -p ~/.oci
 
-          # 寫入 API 私密金鑰
+          # Write API private key
           printf '%s' "$OCI_PRIVATE_KEY" > ~/.oci/oci_api_key.pem
           chmod 600 ~/.oci/oci_api_key.pem
 
-          # 寫入 config（key_file 使用絕對路徑）
+          # Write config (key_file uses absolute path)
           cat > ~/.oci/config << EOF
           [DEFAULT]
           user=$OCI_USER
@@ -51,25 +51,25 @@ jobs:
           EOF
 
       - name: Run OCI retry script
-        # 腳本成功（exit 0）→ 下一步自動停用 workflow
-        # timeout 到期（exit 124）→ 視為 failure，觸發下一個 Job
-        # timeout 19800s = 330 分鐘，比 job timeout 355 分鐘少 25 分鐘，保留給前置步驟
+        # Script succeeds (exit 0)  → next step auto-disables the workflow
+        # Timeout expires (exit 124) → treated as failure, triggers next Job
+        # timeout 19800s = 330 min, 25 min less than job timeout 355 min (buffer for setup steps)
         id: run_script
         continue-on-error: true
         env:
           PYTHONUNBUFFERED: "1"
         run: timeout 19800 python oci_retry_micro.py
 
-      - name: 成功後自動停用 workflow
+      - name: Auto-disable workflow on success
         if: steps.run_script.outcome == 'success'
         run: |
           curl -s -X PUT \
             -H "Authorization: token ${{ secrets.GH_PAT }}" \
             -H "Accept: application/vnd.github.v3+json" \
             https://api.github.com/repos/${{ github.repository }}/actions/workflows/oci_retry_micro.yml/disable
-          echo "Workflow 已自動停用"
+          echo "Workflow auto-disabled"
 
-      - name: 觸發下一個 Job（無縫接力）
+      - name: Trigger next Job (seamless relay)
         if: steps.run_script.outcome != 'success'
         run: |
           curl -s -X POST \
@@ -77,4 +77,4 @@ jobs:
             -H "Accept: application/vnd.github.v3+json" \
             https://api.github.com/repos/${{ github.repository }}/actions/workflows/oci_retry_micro.yml/dispatches \
             -d '{"ref":"main"}'
-          echo "已觸發下一個 Job"
+          echo "Next Job triggered"

@@ -3,27 +3,27 @@ import time
 import datetime
 
 # ╔══════════════════════════════════════════════════════╗
-# ║  目標：VM.Standard.E2.1.Micro（x86）                 ║
-# ║  規格：1 OCPU / 1 GB RAM / 預設 50 GB 磁碟           ║
-# ║  架構：x86（比 ARM 好搶）                             ║
-# ║  方案：Oracle Always Free（永久免費，每帳號最多 2 台）║
-# ║  OS  ：Canonical Ubuntu 22.04                        ║
+# ║  Target : VM.Standard.E2.1.Micro (x86)               ║
+# ║  Spec   : 1 OCPU / 1 GB RAM / 50 GB disk (default)   ║
+# ║  Arch   : x86 (easier to claim than ARM)             ║
+# ║  Tier   : Oracle Always Free (max 2 per account)     ║
+# ║  OS     : Canonical Ubuntu 22.04                     ║
 # ╚══════════════════════════════════════════════════════╝
 
-# ─── 設定 ───────────────────────────────────────────────
+# ─── Configuration ───────────────────────────────────────
 COMPARTMENT_ID = (
-    "ocid1.tenancy.oc1..aaaaaaaaaqij5zlnm3v5qprvdll3j7nc6o3dk4ykzerugzxe37ckajkpjxpa"  # 改成自己的租用戶 OCID
+    "ocid1.tenancy.oc1..aaaaaaaaaqij5zlnm3v5qprvdll3j7nc6o3dk4ykzerugzxe37ckajkpjxpa"  # Replace with your tenancy OCID
 )
-SSH_PUBLIC_KEY = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCxPqVeut2vbwt8VVAvHDnEN+q61jrIAGD9cQgW6kTeLCjjzm9UHt2Flf1KoohSu+0YFvSn8+t67r9T9wfdP14WBfZAg531CCyUNTbF5KmkaHgmxftWu3FgY00BTnGa4YEEXdAGn3X953HzFKJDpJVJyWFfWXJUOWdfivTKlO+62SBnlIdcanckwA6rzr9dXNSYlasoVnuk+ujANjhnxf4TpKcI4AQrAmRJQ83lXfI2yExBMX+Qx/JNSA2/2XFRfT7OMgddExibCRpSyammfatNLUIM5s+ab6aeO3aNvVWGok6/dpYaBPbvndERQs6p9FQr88C/VFeEwHCtvMT8c2WB ssh-key-2026-03-07"  # 改成自己的 SSH 公鑰（.pub 檔內容）
-RETRY_INTERVAL = 90  # 秒
+SSH_PUBLIC_KEY = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCxPqVeut2vbwt8VVAvHDnEN+q61jrIAGD9cQgW6kTeLCjjzm9UHt2Flf1KoohSu+0YFvSn8+t67r9T9wfdP14WBfZAg531CCyUNTbF5KmkaHgmxftWu3FgY00BTnGa4YEEXdAGn3X953HzFKJDpJVJyWFfWXJUOWdfivTKlO+62SBnlIdcanckwA6rzr9dXNSYlasoVnuk+ujANjhnxf4TpKcI4AQrAmRJQ83lXfI2yExBMX+Qx/JNSA2/2XFRfT7OMgddExibCRpSyammfatNLUIM5s+ab6aeO3aNvVWGok6/dpYaBPbvndERQs6p9FQr88C/VFeEwHCtvMT8c2WB ssh-key-2026-03-07"  # Replace with your SSH public key (.pub file content)
+RETRY_INTERVAL = 90  # seconds
 # ────────────────────────────────────────────────────────
 
-# ─── OCI 認證設定 ─────────────────────────────────────────
-# 【本機執行】：需在 C:\Users\你的帳號\.oci\config 建立設定檔
-#   格式見 README.md，key_file 指向下載的 API 私密金鑰 .pem
+# ─── OCI Authentication ──────────────────────────────────
+# [Local] Create a config file at ~/.oci/config
+#   See README.md for format; key_file should point to your API private key .pem
 #
-# 【GitHub Actions 執行】：不需要 config 檔
-#   workflow 會從 GitHub Secrets 自動建立，詳見 README.md
+# [GitHub Actions] No config file needed
+#   The workflow auto-creates it from GitHub Secrets — see README.md
 # ────────────────────────────────────────────────────────
 config = oci.config.from_file()
 
@@ -45,7 +45,7 @@ def get_ubuntu_x86_image():
         sort_order="DESC",
     ).data
     if not images:
-        raise Exception("找不到 Ubuntu 22.04 x86 映像檔")
+        raise Exception("Ubuntu 22.04 x86 image not found")
     return images[0].id
 
 
@@ -55,7 +55,7 @@ def create_vcn_and_subnet():
     vcns = network.list_vcns(COMPARTMENT_ID, display_name="retry-vcn-micro").data
     if vcns:
         vcn = vcns[0]
-        print(f"使用既有 VCN: {vcn.id}")
+        print(f"Using existing VCN: {vcn.id}")
     else:
         vcn = network.create_vcn(
             oci.core.models.CreateVcnDetails(
@@ -64,8 +64,9 @@ def create_vcn_and_subnet():
                 cidr_block="10.1.0.0/16",
             )
         ).data
-        print(f"建立 VCN: {vcn.id}")
+        print(f"Created VCN: {vcn.id}")
 
+        # Create Internet Gateway
         ig = network.create_internet_gateway(
             oci.core.models.CreateInternetGatewayDetails(
                 compartment_id=COMPARTMENT_ID,
@@ -75,6 +76,7 @@ def create_vcn_and_subnet():
             )
         ).data
 
+        # Update route table to allow outbound traffic
         network.update_route_table(
             vcn.default_route_table_id,
             oci.core.models.UpdateRouteTableDetails(
@@ -87,6 +89,7 @@ def create_vcn_and_subnet():
             ),
         )
 
+        # Open inbound ports: SSH / HTTP / HTTPS / Streamlit
         security_lists = network.list_security_lists(COMPARTMENT_ID, vcn_id=vcn.id).data
         if security_lists:
             existing_egress = security_lists[0].egress_security_rules
@@ -111,12 +114,13 @@ def create_vcn_and_subnet():
                 ),
             )
 
+    # Check if subnet already exists
     subnets = network.list_subnets(
         COMPARTMENT_ID, vcn_id=vcn.id, display_name="retry-subnet-micro"
     ).data
     if subnets:
         subnet = subnets[0]
-        print(f"使用既有子網路: {subnet.id}")
+        print(f"Using existing subnet: {subnet.id}")
     else:
         subnet = network.create_subnet(
             oci.core.models.CreateSubnetDetails(
@@ -127,7 +131,7 @@ def create_vcn_and_subnet():
                 prohibit_public_ip_on_vnic=False,
             )
         ).data
-        print(f"建立子網路: {subnet.id}")
+        print(f"Created subnet: {subnet.id}")
 
     return subnet.id
 
@@ -154,14 +158,14 @@ def try_create_instance(subnet_id, ad_name, image_id):
 
 
 def main():
-    print("初始化網路設定...")
+    print("Initializing network configuration...")
     subnet_id = create_vcn_and_subnet()
 
-    print("取得可用性網域...")
+    print("Fetching availability domain...")
     ad_name = get_availability_domain()
     print(f"AD: {ad_name}")
 
-    print("取得 Ubuntu 22.04 x86 映像檔...")
+    print("Fetching Ubuntu 22.04 x86 image...")
     image_id = get_ubuntu_x86_image()
     print(f"Image ID: {image_id}")
 
@@ -169,22 +173,22 @@ def main():
     while True:
         attempt += 1
         now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        print(f"\n[{now}] 第 {attempt} 次嘗試建立 instance...")
+        print(f"\n[{now}] Attempt #{attempt} to create instance...")
 
         try:
             instance = try_create_instance(subnet_id, ad_name, image_id)
-            print(f"\n✅ 成功！Instance 已建立")
+            print(f"\n✅ Success! Instance created")
             print(f"   ID: {instance.id}")
-            print(f"   狀態: {instance.lifecycle_state}")
-            print(f"   請到 Oracle Cloud 主控台查看公用 IP")
+            print(f"   State: {instance.lifecycle_state}")
+            print(f"   Check Oracle Cloud Console for the public IP")
             break
         except oci.exceptions.ServiceError as e:
             if "Out of host capacity" in str(e) or "capacity" in str(e).lower():
-                print(f"❌ 容量不足，重試...")
+                print(f"❌ Out of capacity, retrying...")
             else:
-                print(f"❌ API 錯誤: {e.message}，重試...")
+                print(f"❌ API error: {e.message}, retrying...")
         except Exception as e:
-            print(f"⚠️ 網路逾時或其他錯誤，重試... ({type(e).__name__})")
+            print(f"⚠️ Network timeout or other error, retrying... ({type(e).__name__})")
 
         time.sleep(RETRY_INTERVAL)
 
