@@ -15,7 +15,7 @@ COMPARTMENT_ID = (
     "ocid1.tenancy.oc1..aaaaaaaag6i65nrovhkcjgetmd6wcyxnqureu6yr4tjh2ynkvtiwdiy4mgva"  # Replace with your tenancy OCID
 )
 SSH_PUBLIC_KEY = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDrbIAE627FsyCshIhHGIZ7C+KphTC7ISGLYZZCunSMcV/rW5h/ULwi/qRxPp0xd9HayNLOkCAcpn9SHccpzf/e9XglLYLUEjKaM6GwbzHGvZZ28/k/Jkr+VxU74mIw8tlHmMJTNo/RKrft46YbgXCttUTaP5Xl/hNjMfIBzPgIKbiE7EzsdUy2c78Ugwq4jkch6VDcjo3yX7zw6SvFHl0dUPiq/Rxpe8x+h6ns2sJmZtjEgM+dzFQh9mdMjK/BGa76BtRbGu3K1OjgiiMVtyqtgrpWCmIj3VLCWxEyZJgyUM5E/Zn0bJSaNTDaF5muQiUidUv1mL8OjdMaszdpKoMR ssh-key-2026-06-10"  # Replace with your SSH public key (.pub file content)
-RETRY_INTERVAL = 180  # seconds
+RETRY_INTERVAL = 90  # seconds
 # ────────────────────────────────────────────────────────
 
 # ─── OCI Authentication ──────────────────────────────────
